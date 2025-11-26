@@ -1,4 +1,4 @@
-library osg_plugin;
+library;
 
 import 'package:flutter/services.dart';
 

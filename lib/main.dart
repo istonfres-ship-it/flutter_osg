@@ -16,13 +16,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       home: const Scaffold(
-        body: Center(
-          child: SizedBox(
-            width: 800,
-            height: 600,
-            child: OsgView(),
-          ),
-        ),
+        body: OsgView(),
       ),
     );
   }

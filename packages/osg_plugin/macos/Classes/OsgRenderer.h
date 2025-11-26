@@ -3,6 +3,7 @@
 #include <osgViewer/Viewer>
 #include <osg/Texture2D>
 #include <osg/MatrixTransform>
+#include <chrono>
 
 class OsgRenderer {
 public:
@@ -13,10 +14,24 @@ public:
     int getTextureId() const;
     void resize(int width, int height);
     void readPixels(void* buffer);
+    
+    // Input events
+    void onMouseMove(int x, int y);
+    void onMouseButton(int button, bool pressed, int x, int y);
+    void onKeyEvent(int keyCode, bool pressed);
+    void onScroll(double deltaX, double deltaY);
+    
+    int getWidth() const { return _width; }
+    int getHeight() const { return _height; }
 
 private:
     void initScene();
     void softwareRenderABC();
+    void drawDigit(int digit, int x, int y, int size, unsigned char r, unsigned char g, unsigned char b);
+    void drawNumber(int num, int x, int y, int size, unsigned char r, unsigned char g, unsigned char b);
+    void drawFPS();
+    void drawDebugInfo();
+    void drawMouseCursor();
     osg::Node* createTextGeometry();
 
     osg::ref_ptr<osgViewer::Viewer> _viewer;
@@ -26,4 +41,15 @@ private:
     int _width;
     int _height;
     int _frameCount;
+    
+    // Input state
+    int _mouseX, _mouseY;
+    bool _mousePressed;
+    int _lastKeyCode;
+    
+    // FPS tracking
+    std::chrono::steady_clock::time_point _lastFrameTime;
+    double _fps;
+    double _frameTimeAccum;
+    int _fpsFrameCount;
 };
