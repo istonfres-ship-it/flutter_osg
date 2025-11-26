@@ -4,7 +4,25 @@
 #include <osg/Material>
 #include <osg/PositionAttitudeTransform>
 #include <osgDB/ReadFile>
-#include <osg/GraphicsContext> // Add this
+#include <osg/GraphicsContext>
+#include <osg/Camera> // Added
+
+// Callback to capture the frame
+struct CaptureCallback : public osg::Camera::DrawCallback
+{
+    CaptureCallback(osg::Image* image) : _image(image) {}
+
+    virtual void operator () (osg::RenderInfo& renderInfo) const
+    {
+        if (_image.valid())
+        {
+            // Read pixels from the currently bound framebuffer
+            _image->readPixels(0, 0, _image->s(), _image->t(), _image->getPixelFormat(), _image->getDataType());
+        }
+    }
+
+    osg::ref_ptr<osg::Image> _image;
+};
 
 // Callback to rotate the ball
 class RollCallback : public osg::NodeCallback {
@@ -49,7 +67,8 @@ void OsgRenderer::initScene() {
     _texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::LINEAR);
 
     _image = new osg::Image;
-    _image->allocateImage(_width, _height, 1, GL_RGBA, GL_UNSIGNED_BYTE);
+    // Use GL_BGRA to match macOS CVPixelBuffer format (kCVPixelFormatType_32BGRA)
+    _image->allocateImage(_width, _height, 1, GL_BGRA, GL_UNSIGNED_BYTE);
     _texture->setImage(0, _image.get());
 
     // Setup Viewer
@@ -93,7 +112,8 @@ void OsgRenderer::initScene() {
     camera->setClearColor(osg::Vec4(0.1f, 0.1f, 0.1f, 1.0f));
     camera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT);
     camera->attach(osg::Camera::COLOR_BUFFER, _texture.get());
-    camera->attach(osg::Camera::COLOR_BUFFER, _image.get()); // Attach image to read back
+    // Use PostDrawCallback to read pixels instead of attaching image directly
+    camera->setPostDrawCallback(new CaptureCallback(_image.get()));
     
     _viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
     _viewer->realize();
@@ -138,6 +158,9 @@ void OsgRenderer::resize(int width, int height) {
     if (_viewer.valid()) {
         _viewer->getCamera()->setViewport(0, 0, _width, _height);
         _texture->setTextureSize(_width, _height);
+        if (_image.valid()) {
+            _image->allocateImage(_width, _height, 1, GL_BGRA, GL_UNSIGNED_BYTE);
+        }
     }
 }
 
