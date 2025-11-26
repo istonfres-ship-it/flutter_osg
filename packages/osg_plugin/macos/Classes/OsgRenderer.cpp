@@ -5,169 +5,162 @@
 #include <osg/PositionAttitudeTransform>
 #include <osgDB/ReadFile>
 #include <osg/GraphicsContext>
-#include <osg/Camera> // Added
+#include <osg/Camera>
+#include <osg/Geometry>
+#include <osg/LineWidth>
+#include <cstring>
+#include <cmath>
 
-// Callback to capture the frame
-struct CaptureCallback : public osg::Camera::DrawCallback
-{
-    CaptureCallback(osg::Image* image) : _image(image) {}
-
-    virtual void operator () (osg::RenderInfo& renderInfo) const
-    {
-        if (_image.valid())
-        {
-            // Read pixels from the currently bound framebuffer
-            _image->readPixels(0, 0, _image->s(), _image->t(), _image->getPixelFormat(), _image->getDataType());
-        }
-    }
-
-    osg::ref_ptr<osg::Image> _image;
-};
-
-// Callback to rotate the ball
-class RollCallback : public osg::NodeCallback {
-public:
-    RollCallback(double speed) : _speed(speed), _angle(0.0) {}
+OsgRenderer::OsgRenderer(int width, int height) : _width(width), _height(height), _pixelData(nullptr), _frameCount(0) {
+    // Allocate pixel buffer
+    _pixelData = new unsigned char[_width * _height * 4];
+    memset(_pixelData, 0, _width * _height * 4);
     
-    virtual void operator()(osg::Node* node, osg::NodeVisitor* nv) {
-        osg::PositionAttitudeTransform* pat = dynamic_cast<osg::PositionAttitudeTransform*>(node);
-        if (pat) {
-            _angle += _speed;
-            // Simple rotation around X axis to simulate rolling along Y or Z
-            pat->setAttitude(osg::Quat(_angle, osg::Vec3(1.0, 0.0, 0.0)));
-        }
-        traverse(node, nv);
-    }
-private:
-    double _speed;
-    double _angle;
-};
-
-OsgRenderer::OsgRenderer(int width, int height) : _width(width), _height(height) {
-    initScene();
+    // For now, skip OSG and just do software rendering test
+    // to verify the pixel transfer works correctly
 }
 
 OsgRenderer::~OsgRenderer() {
     _viewer = nullptr;
+    if (_pixelData) {
+        delete[] _pixelData;
+        _pixelData = nullptr;
+    }
+}
+
+// Software render "ABC" text for testing
+void OsgRenderer::softwareRenderABC() {
+    // Clear to dark blue background
+    for (int i = 0; i < _width * _height; i++) {
+        _pixelData[i * 4 + 0] = 50;   // R
+        _pixelData[i * 4 + 1] = 50;   // G
+        _pixelData[i * 4 + 2] = 80;   // B
+        _pixelData[i * 4 + 3] = 255;  // A
+    }
+    
+    // Draw letter A (yellow) - simple triangle shape
+    int letterSize = 100;
+    int startX = _width / 2 - 200;
+    int startY = _height / 2 - letterSize / 2;
+    
+    // Letter A - two diagonal lines and a crossbar
+    for (int i = 0; i < letterSize; i++) {
+        // Left diagonal
+        int x1 = startX + i / 2;
+        int y1 = startY + i;
+        if (x1 >= 0 && x1 < _width && y1 >= 0 && y1 < _height) {
+            int idx = (y1 * _width + x1) * 4;
+            _pixelData[idx + 0] = 255; _pixelData[idx + 1] = 255; _pixelData[idx + 2] = 0; _pixelData[idx + 3] = 255;
+        }
+        // Right diagonal
+        int x2 = startX + letterSize - i / 2;
+        int y2 = startY + i;
+        if (x2 >= 0 && x2 < _width && y2 >= 0 && y2 < _height) {
+            int idx = (y2 * _width + x2) * 4;
+            _pixelData[idx + 0] = 255; _pixelData[idx + 1] = 255; _pixelData[idx + 2] = 0; _pixelData[idx + 3] = 255;
+        }
+    }
+    // Crossbar for A
+    int crossY = startY + letterSize / 2;
+    for (int x = startX + letterSize / 4; x < startX + letterSize * 3 / 4; x++) {
+        if (x >= 0 && x < _width && crossY >= 0 && crossY < _height) {
+            int idx = (crossY * _width + x) * 4;
+            _pixelData[idx + 0] = 255; _pixelData[idx + 1] = 255; _pixelData[idx + 2] = 0; _pixelData[idx + 3] = 255;
+        }
+    }
+    
+    // Letter B (green) - vertical line + bumps
+    startX = _width / 2 - 50;
+    for (int y = startY; y < startY + letterSize; y++) {
+        int idx = (y * _width + startX) * 4;
+        if (startX >= 0 && startX < _width && y >= 0 && y < _height) {
+            _pixelData[idx + 0] = 0; _pixelData[idx + 1] = 255; _pixelData[idx + 2] = 0; _pixelData[idx + 3] = 255;
+        }
+    }
+    // Top horizontal
+    for (int x = startX; x < startX + 60; x++) {
+        int y = startY + letterSize;
+        if (x >= 0 && x < _width && y >= 0 && y < _height) {
+            int idx = (y * _width + x) * 4;
+            _pixelData[idx + 0] = 0; _pixelData[idx + 1] = 255; _pixelData[idx + 2] = 0; _pixelData[idx + 3] = 255;
+        }
+    }
+    // Middle horizontal
+    for (int x = startX; x < startX + 60; x++) {
+        int y = startY + letterSize / 2;
+        if (x >= 0 && x < _width && y >= 0 && y < _height) {
+            int idx = (y * _width + x) * 4;
+            _pixelData[idx + 0] = 0; _pixelData[idx + 1] = 255; _pixelData[idx + 2] = 0; _pixelData[idx + 3] = 255;
+        }
+    }
+    // Bottom horizontal
+    for (int x = startX; x < startX + 60; x++) {
+        int y = startY;
+        if (x >= 0 && x < _width && y >= 0 && y < _height) {
+            int idx = (y * _width + x) * 4;
+            _pixelData[idx + 0] = 0; _pixelData[idx + 1] = 255; _pixelData[idx + 2] = 0; _pixelData[idx + 3] = 255;
+        }
+    }
+    
+    // Letter C (blue) - arc shape
+    startX = _width / 2 + 100;
+    int centerY = startY + letterSize / 2;
+    int radius = letterSize / 2;
+    for (int angle = 45; angle < 315; angle++) {
+        double rad = angle * 3.14159 / 180.0;
+        int x = startX + radius + (int)(cos(rad) * radius);
+        int y = centerY + (int)(sin(rad) * radius);
+        if (x >= 0 && x < _width && y >= 0 && y < _height) {
+            int idx = (y * _width + x) * 4;
+            _pixelData[idx + 0] = 0; _pixelData[idx + 1] = 128; _pixelData[idx + 2] = 255; _pixelData[idx + 3] = 255;
+        }
+    }
+    
+    // Add animated element - a moving red dot
+    _frameCount++;
+    int dotX = (_width / 4) + (int)(sin(_frameCount * 0.05) * 100);
+    int dotY = _height - 50;
+    for (int dy = -5; dy <= 5; dy++) {
+        for (int dx = -5; dx <= 5; dx++) {
+            int x = dotX + dx;
+            int y = dotY + dy;
+            if (x >= 0 && x < _width && y >= 0 && y < _height && dx*dx + dy*dy <= 25) {
+                int idx = (y * _width + x) * 4;
+                _pixelData[idx + 0] = 255; _pixelData[idx + 1] = 0; _pixelData[idx + 2] = 0; _pixelData[idx + 3] = 255;
+            }
+        }
+    }
 }
 
 void OsgRenderer::initScene() {
-    _root = new osg::Group;
-
-    // Create 3 balls
-    _root->addChild(createRollingBall(osg::Vec3(-2.0, 0.0, 0.0), osg::Vec4(1.0, 0.0, 0.0, 1.0))); // Red
-    _root->addChild(createRollingBall(osg::Vec3(0.0, 0.0, 0.0), osg::Vec4(0.0, 1.0, 0.0, 1.0)));  // Green
-    _root->addChild(createRollingBall(osg::Vec3(2.0, 0.0, 0.0), osg::Vec4(0.0, 0.0, 1.0, 1.0)));  // Blue
-
-    // Setup Texture for Off-screen rendering
-    _texture = new osg::Texture2D;
-    _texture->setTextureSize(_width, _height);
-    _texture->setInternalFormat(GL_RGBA);
-    _texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture2D::LINEAR);
-    _texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture2D::LINEAR);
-
-    _image = new osg::Image;
-    // Use GL_BGRA to match macOS CVPixelBuffer format (kCVPixelFormatType_32BGRA)
-    _image->allocateImage(_width, _height, 1, GL_BGRA, GL_UNSIGNED_BYTE);
-    _texture->setImage(0, _image.get());
-
-    // Setup Viewer
-    _viewer = new osgViewer::Viewer;
-    _viewer->setSceneData(_root);
-    
-    // Setup Camera for RTT (Render To Texture)
-    osg::Camera* camera = _viewer->getCamera();
-
-    // Create a graphics context (pbuffer)
-    osg::ref_ptr<osg::GraphicsContext::Traits> traits = new osg::GraphicsContext::Traits;
-    traits->x = 0;
-    traits->y = 0;
-    traits->width = _width;
-    traits->height = _height;
-    traits->red = 8;
-    traits->green = 8;
-    traits->blue = 8;
-    traits->alpha = 8;
-    traits->depth = 24;
-    traits->windowDecoration = false;
-    traits->doubleBuffer = true;
-    traits->sharedContext = 0;
-    traits->pbuffer = true; // Try pbuffer
-
-    osg::ref_ptr<osg::GraphicsContext> gc = osg::GraphicsContext::createGraphicsContext(traits.get());
-    if (!gc) {
-        printf("OSG: Failed to create pbuffer context. Trying window.\n");
-        traits->pbuffer = false;
-        gc = osg::GraphicsContext::createGraphicsContext(traits.get());
-    }
-    
-    if (gc) {
-        printf("OSG: GraphicsContext created.\n");
-        camera->setGraphicsContext(gc.get()); 
-    } else {
-        printf("OSG: Failed to create GraphicsContext.\n");
-    }
-
-    camera->setViewport(0, 0, _width, _height);
-    camera->setClearColor(osg::Vec4(0.1f, 0.1f, 0.1f, 1.0f));
-    camera->setRenderTargetImplementation(osg::Camera::FRAME_BUFFER_OBJECT);
-    camera->attach(osg::Camera::COLOR_BUFFER, _texture.get());
-    // Use PostDrawCallback to read pixels instead of attaching image directly
-    camera->setPostDrawCallback(new CaptureCallback(_image.get()));
-    
-    _viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
-    _viewer->realize();
+    // Skip OSG initialization for now
 }
 
-osg::Node* OsgRenderer::createRollingBall(const osg::Vec3& position, const osg::Vec4& color) {
-    osg::Geode* geode = new osg::Geode;
-    osg::ShapeDrawable* sphere = new osg::ShapeDrawable(new osg::Sphere(osg::Vec3(0,0,0), 0.8f));
-    sphere->setColor(color);
-    geode->addDrawable(sphere);
-
-    osg::PositionAttitudeTransform* pat = new osg::PositionAttitudeTransform;
-    pat->setPosition(position);
-    pat->addChild(geode);
-    pat->setUpdateCallback(new RollCallback(0.05)); // Add rolling animation
-
-    return pat;
+osg::Node* OsgRenderer::createTextGeometry() {
+    return nullptr;
 }
 
 void OsgRenderer::render() {
-    if (_viewer.valid()) {
-        // printf("OSG: Rendering frame...\n");
-        _viewer->frame();
-    }
+    // Use software rendering for testing
+    softwareRenderABC();
 }
 
 int OsgRenderer::getTextureId() const {
-    // This returns the OpenGL texture ID.
-    // Note: This ID is only valid in the context where OSG created it.
-    // To share with Flutter, you need context sharing or texture sharing extensions.
-    if (_texture.valid()) {
-         // We use context ID 0 as a default for single-context apps
-         osg::Texture::TextureObject* to = _texture->getTextureObject(0);
-         if (to) return to->id();
-    }
     return 0; 
 }
 
 void OsgRenderer::resize(int width, int height) {
     _width = width;
     _height = height;
-    if (_viewer.valid()) {
-        _viewer->getCamera()->setViewport(0, 0, _width, _height);
-        _texture->setTextureSize(_width, _height);
-        if (_image.valid()) {
-            _image->allocateImage(_width, _height, 1, GL_BGRA, GL_UNSIGNED_BYTE);
-        }
+    if (_pixelData) {
+        delete[] _pixelData;
     }
+    _pixelData = new unsigned char[_width * _height * 4];
+    memset(_pixelData, 0, _width * _height * 4);
 }
 
 void OsgRenderer::readPixels(void* buffer) {
-    if (_image.valid() && _image->data()) {
-        // Copy data from OSG image to the buffer
-        // Assuming buffer is large enough: width * height * 4
-        memcpy(buffer, _image->data(), _width * _height * 4);
+    if (_pixelData && buffer) {
+        memcpy(buffer, _pixelData, _width * _height * 4);
     }
 }

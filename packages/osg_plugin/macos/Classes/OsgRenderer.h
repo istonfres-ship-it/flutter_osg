@@ -12,16 +12,18 @@ public:
     void render();
     int getTextureId() const;
     void resize(int width, int height);
-    void readPixels(void* buffer); // Add this
+    void readPixels(void* buffer);
 
 private:
     void initScene();
-    osg::Node* createRollingBall(const osg::Vec3& position, const osg::Vec4& color);
+    void softwareRenderABC();
+    osg::Node* createTextGeometry();
 
     osg::ref_ptr<osgViewer::Viewer> _viewer;
-    osg::ref_ptr<osg::Texture2D> _texture;
-    osg::ref_ptr<osg::Image> _image;
     osg::ref_ptr<osg::Group> _root;
+    osg::ref_ptr<osg::GraphicsContext> _gc;
+    unsigned char* _pixelData;
     int _width;
     int _height;
+    int _frameCount;
 };

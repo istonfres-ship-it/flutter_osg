@@ -47,13 +47,33 @@ class OsgTexture: NSObject, FlutterTexture {
         if status == kCVReturnSuccess, let buffer = pixelBuffer {
             CVPixelBufferLockBaseAddress(buffer, [])
             if let baseAddress = CVPixelBufferGetBaseAddress(buffer) {
-                // OSG renders to RGBA, but CVPixelBuffer is BGRA usually on macOS for efficiency or RGBA.
-                // Let's assume RGBA for now. If colors are swapped, we change format or swizzle.
-                // Wait, I used kCVPixelFormatType_32BGRA.
-                // OSG usually renders RGBA.
-                // So Red and Blue might be swapped.
-                // For this demo, let's just copy and see.
-                readOsgPixels(renderer, baseAddress)
+                let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
+                let srcBytesPerRow = width * 4
+                
+                // Allocate temporary buffer to read OSG pixels (RGBA format)
+                let tempBuffer = UnsafeMutableRawPointer.allocate(byteCount: width * height * 4, alignment: 1)
+                defer { tempBuffer.deallocate() }
+                
+                // Read pixels from OSG (RGBA format)
+                readOsgPixels(renderer, tempBuffer)
+                
+                // Convert RGBA to BGRA and flip vertically
+                let srcPtr = tempBuffer.assumingMemoryBound(to: UInt8.self)
+                let dstPtr = baseAddress.assumingMemoryBound(to: UInt8.self)
+                
+                for y in 0..<height {
+                    let srcY = height - 1 - y  // Flip Y
+                    for x in 0..<width {
+                        let srcIdx = (srcY * width + x) * 4
+                        let dstIdx = y * bytesPerRow + x * 4
+                        
+                        // RGBA -> BGRA: swap R and B
+                        dstPtr[dstIdx + 0] = srcPtr[srcIdx + 2]  // B <- R
+                        dstPtr[dstIdx + 1] = srcPtr[srcIdx + 1]  // G <- G
+                        dstPtr[dstIdx + 2] = srcPtr[srcIdx + 0]  // R <- B
+                        dstPtr[dstIdx + 3] = srcPtr[srcIdx + 3]  // A <- A
+                    }
+                }
             }
             CVPixelBufferUnlockBaseAddress(buffer, [])
             return Unmanaged.passRetained(buffer)
