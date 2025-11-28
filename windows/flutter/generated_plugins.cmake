@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  osg_plugin
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

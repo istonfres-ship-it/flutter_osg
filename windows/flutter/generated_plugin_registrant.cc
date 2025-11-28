@@ -6,6 +6,9 @@
 
 #include "generated_plugin_registrant.h"
 
+#include <osg_plugin/osg_plugin_c_api.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
+  OsgPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("OsgPluginCApi"));
 }
