@@ -18,3 +18,5 @@ flutter:
         pluginClass: OsgPlugin
       windows:
         pluginClass: OsgPluginCApi
+      ios:
+        pluginClass: OsgPlugin
